@@ -1,7 +1,8 @@
-package com.example.expensetrackerapp
+package com.example.expensetrackerapp.feature.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,13 +12,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -25,14 +32,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
+import com.example.expensetrackerapp.R
+import com.example.expensetrackerapp.data.model.ExpenseEntity
 import com.example.expensetrackerapp.ui.theme.Zinc
+import com.example.expensetrackerapp.viewModel.HomeViewModel
+import com.example.expensetrackerapp.viewModel.HomeViewModelFactory
 import com.example.expensetrackerapp.widget.ExpenseTextView
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(navController: NavController) {
+   val viewModel : HomeViewModel = HomeViewModelFactory(LocalContext.current).create(HomeViewModel::class.java)
     Surface(modifier = Modifier.fillMaxSize()) {
         ConstraintLayout(modifier = Modifier.fillMaxSize()) {
-            val (nameRow, list, card, topBar) = createRefs()
+            val (nameRow, list, card, topBar, add) = createRefs()
             Image(
                 painter = painterResource(id = R.drawable.ic_topbar),
                 contentDescription = null,
@@ -73,29 +87,42 @@ fun HomeScreen() {
                 )
 
             }
+            val state = viewModel.expenses.collectAsState(initial = emptyList())
+            val expenses = viewModel.getTotalExpense(state.value)
+            val income = viewModel.getTotalIncome(state.value)
+            val balance = viewModel.getBalance(state.value)
             CardItem(
                 modifier = Modifier.constrainAs(card) {
                     top.linkTo(nameRow.bottom)
                     start.linkTo(parent.start)
                     end.linkTo(parent.end)
-                }
+                }, expenses, income, balance
             )
 
             TransactionList(
-                modifier = Modifier.constrainAs(list) {
+                modifier = Modifier.fillMaxWidth().constrainAs(list) {
                     top.linkTo(card.bottom)
                     start.linkTo(parent.start)
                     end.linkTo(parent.end)
                     bottom.linkTo(parent.bottom)
                     height= Dimension.fillToConstraints
-                }
+                },list = state.value,viewModel
+            )
+
+            Image(
+                painterResource(R.drawable.ic_addbutton),
+                contentDescription = null,
+                modifier  = Modifier.constrainAs(add) {
+                    bottom.linkTo(parent.bottom)
+                    end.linkTo(parent.end)
+                }.padding(8.dp).size(48.dp).clip(CircleShape).clickable{navController.navigate("/addExpense")}
             )
         }
     }
 }
 
 @Composable
-fun CardItem(modifier: Modifier){
+fun CardItem(modifier: Modifier, expenses: String, income: String, balance: String){
     Column(
         modifier = modifier
             .padding(16.dp)
@@ -116,7 +143,7 @@ fun CardItem(modifier: Modifier){
                     lineHeight = 20.sp
                 )
                 ExpenseTextView(
-                    text = "$ 5000",
+                    text = balance,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -136,13 +163,13 @@ fun CardItem(modifier: Modifier){
             CardRowItem(
                 modifier = Modifier.align(Alignment.CenterStart),
                 title = "Income",
-                amount = "$ 2,345.00",
+                amount = income,
                 image = R.drawable.ic_income
             )
             CardRowItem(
                 modifier = Modifier.align(Alignment.CenterEnd),
                 title = "Expense",
-                amount = "$ 1,349",
+                amount = expenses,
                 image = R.drawable.ic_expense
             )
         }
@@ -150,47 +177,31 @@ fun CardItem(modifier: Modifier){
 }
 
 @Composable
-fun TransactionList(modifier: Modifier) {
-    Column(modifier = modifier.padding(horizontal = 16.dp)) {
-        Box(modifier.fillMaxWidth()) {
-            ExpenseTextView(
-                text = "Recent Transactions",
-                fontSize = 20.sp,
-            )
-            ExpenseTextView(
-                text = "See All",
-                fontSize = 16.sp,
-                modifier = Modifier.align(Alignment.CenterEnd)
+fun TransactionList(modifier: Modifier, list: List<ExpenseEntity>, viewModel: HomeViewModel) {
+    LazyColumn(modifier = modifier.padding(horizontal = 16.dp)) {
+        item {
+            Box(modifier.fillMaxWidth()) {
+                ExpenseTextView(
+                    text = "Recent Transactions",
+                    fontSize = 20.sp,
+                )
+                ExpenseTextView(
+                    text = "See All",
+                    fontSize = 16.sp,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+               )
+            }
+        }
+        items(list) { item ->
+            val icon = viewModel?.getItemIcon(item)
+            TransitionItem(
+                title = item.title,
+                amount = item.amount.toString(),
+                icon = icon!!,
+                date = item.date.toString(),
+                color = if (item.type == "Income") Color.Green else Color.Red
             )
         }
-        TransitionItem(
-            title = "Netflix",
-            amount = "$ 200.00",
-            icon = R.drawable.ic_netflix,
-            date = "Today",
-            color = Color.Red
-        )
-        TransitionItem(
-            title = "Upwork",
-            amount = "$ 5250.00",
-            icon = R.drawable.ic_upwork ,
-            date = "Today",
-            color = Color.Red
-        )
-        TransitionItem(
-            title = "Paypal",
-            amount = "$ 1000.00",
-            icon = R.drawable.ic_paypal,
-            date = "Today",
-            color = Color.Red
-        )
-        TransitionItem(
-            title = "Starbucks",
-            amount = "$ 200.00",
-            icon = R.drawable.ic_paypal,
-            date = "Today",
-            color = Color.Red
-        )
     }
 }
 
@@ -217,7 +228,8 @@ fun TransitionItem(title: String, amount: String, icon: Int, date: String, color
             Image(
                 painter = painterResource(id = icon),
                 contentDescription = null,
-                modifier = Modifier.size(50.dp)
+                modifier = Modifier.size(50.dp).clip(CircleShape),
+                contentScale = ContentScale.Fit
             )
             Spacer(modifier = Modifier.size(8.dp))
             Column {
@@ -238,5 +250,5 @@ fun TransitionItem(title: String, amount: String, icon: Int, date: String, color
 @Composable
 @Preview(showBackground = true)
 fun PreviewHomeScreen() {
-    HomeScreen()
+    HomeScreen(rememberNavController())
 }
